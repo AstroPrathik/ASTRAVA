@@ -226,4 +226,44 @@ const originalRenderChart=renderChart;renderChart=function(data){originalRenderC
  const oldFetch=window.fetch.bind(window);
  window.fetch=async function(...args){const response=await oldFetch(...args);if(response.status===401&&String(args[0]).startsWith('/api/')&&!String(args[0]).includes('/login'))location.replace('/login');return response};
 })();
+</script><style id="astrava-v18-onboarding-style">
+#astrava-onboarding{position:fixed;inset:0;z-index:1000;overflow:auto;background:linear-gradient(145deg,#fff9e8,#f4cf68 48%,#fffdf8);padding:24px 14px;display:grid;place-items:center}
+#astrava-onboarding[hidden]{display:none!important}
+.onboard-card{width:min(100%,610px);padding:clamp(20px,4vw,36px);background:white;border:2px solid #d6a83e;border-radius:24px;box-shadow:0 20px 60px #805b1a30}
+.onboard-card h1{margin:6px 0;color:#95640d;font-size:32px}.onboard-card h2{margin:15px 0 8px;color:#65460d}.onboard-card p{color:#695b46;line-height:1.55}
+.onboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 15px}.onboard-card label{margin-top:12px}.onboard-card button{width:100%;margin-top:18px;background:#b88618}.onboard-card .onboard-note{font-size:12px}.onboard-error{color:#a2251a;min-height:20px;font-size:13px}
+@media(max-width:520px){.onboard-grid{grid-template-columns:1fr}}
+</style>
+<div id="astrava-onboarding" hidden role="dialog" aria-modal="true" aria-labelledby="onboard-title">
+ <section class="onboard-card"><div class="brand">✦ ASTRAVA</div><p>Your Universe. Your Destiny.</p>
+ <h1 id="onboard-title">Welcome to ASTRAVA</h1><p>Before exploring your dashboard, enter your birth details. Your Kundli, Panchanga and numerology will use these details.</p>
+ <form id="onboard-form"><label for="on-name">Full name *</label><input id="on-name" maxlength="100" autocomplete="name" required placeholder="Your full name">
+ <div class="onboard-grid"><div><label for="on-dob">Date of birth *</label><input id="on-dob" type="date" required></div><div><label for="on-time">Birth time (for Lagna)</label><input id="on-time" type="time"></div></div>
+ <div class="onboard-grid"><div><label for="on-city">Birth city *</label><input id="on-city" maxlength="80" required placeholder="e.g. Bengaluru"></div><div><label for="on-state">State / province *</label><input id="on-state" maxlength="80" required placeholder="e.g. Karnataka"></div></div>
+ <label for="on-country">Birth country *</label><input id="on-country" maxlength="80" required value="India">
+ <label for="on-language">Preferred language</label><select id="on-language"><option>English</option><option>Bengali</option><option>Kannada</option><option>Telugu</option><option>Tamil</option><option>Marathi</option><option>Hindi</option><option>Malayalam</option></select>
+ <p class="onboard-note">Your details are stored in this browser and are sent to ASTRAVA's server for calculations. This beta uses a shared password, not separate private accounts. Please use sample details when testing on shared devices.</p>
+ <div class="onboard-error" id="onboard-error" role="alert"></div><button type="submit" id="onboard-continue">Continue to my dashboard →</button></form></section>
+</div>
+<script id="astrava-v18-onboarding-script">
+(function(){
+ const modal=document.getElementById('astrava-onboarding'),form=document.getElementById('onboard-form'),err=document.getElementById('onboard-error'),button=document.getElementById('onboard-continue');
+ const key='astrava-beta-v1';let saved=null;try{saved=JSON.parse(localStorage.getItem(key)||'null')}catch{}
+ if(!saved?.profile?.fullName||!saved?.profile?.dob){modal.hidden=false;document.body.style.overflow='hidden';}
+ document.getElementById('on-language').value=document.getElementById('language').value;
+ form.addEventListener('submit',async function(e){
+  e.preventDefault();button.disabled=true;err.textContent='';
+  const fields=[['on-name','name'],['on-dob','dob'],['on-time','time'],['on-city','city'],['on-state','state'],['on-country','country']];
+  for(const [from,to] of fields)document.getElementById(to).value=document.getElementById(from).value;
+  const lang=document.getElementById('language');lang.value=document.getElementById('on-language').value;lang.dispatchEvent(new Event('change',{bubbles:true}));
+  try{
+   const raw=rawProfile();const r=await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(raw),cache:'no-store'});
+   const result=await r.json();if(!r.ok)throw Error(result.error||'Please check your details.');
+   profile=raw;showNumbers(result.profile);persist();modal.hidden=true;document.body.style.overflow='';
+   document.getElementById('tab-home').click();
+   const home=document.querySelector('.home-welcome h2');if(home)home.textContent='Welcome, '+raw.fullName.split(/\s+/)[0]+'!';
+   loadChart();
+  }catch(ex){err.textContent=ex.message||'Unable to save your details.'}finally{button.disabled=false}
+ });
+})();
 </script></body></html>
