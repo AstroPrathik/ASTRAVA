@@ -36,7 +36,14 @@ const body=await readBody(req),p=profileData(body.profile||{}),messages=Array.is
 const clean=messages.slice(-16).filter(x=>['user','assistant'].includes(x.role)&&typeof x.content==='string').map(x=>({role:x.role,content:x.content.slice(0,3500)}));
 if(!clean.length||clean.at(-1).role!=='user')return reply(res,400,{error:'Please type a question.'});
 let chart;try{chart=await vedicProfile(p)}catch(err){chart={error:String(err.message||err),notCalculated:['Nakshatra','Rashi','houses','Dasha']};}
-const context='Calculated numerology: '+JSON.stringify(p)+'\nExploratory astronomical calculation: '+JSON.stringify(chart)+'\nLife context volunteered by user: '+String(body.lifeContext||'').slice(0,2500);
+// Generate the current date and time for EVERY request; never hard-code today's date.
+ const currentInstant=new Date();
+ const indiaDateTime=new Intl.DateTimeFormat('en-IN',{
+   timeZone:'Asia/Kolkata',dateStyle:'full',timeStyle:'long',hour12:true
+ }).format(currentInstant);
+ const utcTimestamp=currentInstant.toISOString();
+ const dateContext=`CURRENT DATE/TIME (authoritative server clock): ${indiaDateTime} (India Standard Time, Asia/Kolkata). UTC timestamp: ${utcTimestamp}. Use this current date for all references to today, tomorrow, current transits, current Dasha periods, ages and timelines. Never rely on the model's training cutoff as today's date. If the server clock and user-provided local date conflict, clarify the user's time zone. A current date does not substitute for astronomical ephemeris data; do not invent today's planetary positions.`;
+ const context=dateContext+'\nCalculated numerology: '+JSON.stringify(p)+'\nExploratory astronomical calculation: '+JSON.stringify(chart)+'\nLife context volunteered by user: '+String(body.lifeContext||'').slice(0,2500);
 const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45000);let response;
 try{response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:MODEL,instructions:system+'\n'+context,input:clean,max_output_tokens:2200,store:false}),signal:controller.signal})}finally{clearTimeout(timeout)}
 const result=await response.json().catch(()=>({}));if(!response.ok){console.error('OpenAI status',response.status,result?.error?.code||'');return reply(res,502,{error:'AI request failed. Check your API key, credits and model access in the hosting dashboard.'})}
