@@ -73,7 +73,7 @@ async function locate(city){
   const options=data.results||[];
   if(!options.length)throw Error('Birth city not found. Check the spelling.');
   const norm=s=>String(s||'').toLocaleLowerCase('en').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-  const matches=options.filter(x=>norm(x.name)===norm(cityName)&&(!stateName||norm(x.admin1)===norm(stateName))&&(!countryName||(norm(x.country)===norm(countryName)||norm(x.country_code)===norm(countryName))));
+  const matches=options.filter(x=>norm(x.name)===norm(cityName)&&(!stateName||(norm(x.admin1)===norm(stateName)||norm(x.admin2)===norm(stateName)))&&(!countryName||(norm(x.country)===norm(countryName)||norm(x.country_code)===norm(countryName))));
   if(!matches.length)throw Error('Could not confirm '+parts.join(', ')+'. Check the city, state and country.');
   const chosen=matches[0];
   if(!chosen.timezone)throw Error('No time zone found for the birth city.');
