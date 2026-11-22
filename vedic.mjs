@@ -37,7 +37,35 @@ function dashaAtBirth(moonLon,birthDate,atDate=new Date()){
 }
 
 const cache=new Map();
-async function locate(city){const key=city.trim().toLowerCase();if(cache.has(key))return cache.get(key);const u=new URL('https://geocoding-api.open-meteo.com/v1/search');u.searchParams.set('name',city);u.searchParams.set('count','5');u.searchParams.set('language','en');u.searchParams.set('format','json');const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),8000);let r;try{r=await fetch(u,{signal:controller.signal})}finally{clearTimeout(timer)}if(!r.ok)throw Error('Birth city lookup is temporarily unavailable.');const data=await r.json();const options=data.results||[];if(!options.length)throw Error('Birth city not found. Please enter City, State, Country.');const chosen=options[0];if(!chosen.timezone)throw Error('No time zone found for the birth city.');const place={name:[chosen.name,chosen.admin1,chosen.country].filter(Boolean).join(', '),latitude:chosen.latitude,longitude:chosen.longitude,timezone:chosen.timezone,ambiguous:options.length>1,otherMatches:options.slice(1,4).map(x=>[x.name,x.admin1,x.country].filter(Boolean).join(', '))};cache.set(key,place);if(cache.size>100)cache.delete(cache.keys().next().value);return place;}
+async function locate(city){
+  const parts=String(city||'').split(',').map(x=>x.trim()).filter(Boolean);
+  const [cityName,stateName,countryName]=parts;
+  if(!cityName)throw Error('Enter a birth city.');
+  const key=parts.join(', ').toLowerCase();
+  if(cache.has(key))return cache.get(key);
+  const u=new URL('https://geocoding-api.open-meteo.com/v1/search');
+  u.searchParams.set('name',cityName);
+  u.searchParams.set('count','100');
+  u.searchParams.set('language','en');
+  u.searchParams.set('format','json');
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),8000);
+  let r;
+  try{r=await fetch(u,{signal:controller.signal})}finally{clearTimeout(timer)}
+  if(!r.ok)throw Error('Birth city lookup is temporarily unavailable.');
+  const data=await r.json();
+  const options=data.results||[];
+  if(!options.length)throw Error('Birth city not found. Check the spelling.');
+  const norm=s=>String(s||'').toLocaleLowerCase('en').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+  const matches=options.filter(x=>norm(x.name)===norm(cityName)&&(!stateName||norm(x.admin1)===norm(stateName))&&(!countryName||(norm(x.country)===norm(countryName)||norm(x.country_code)===norm(countryName))));
+  if(!matches.length)throw Error('Could not confirm '+parts.join(', ')+'. Check the city, state and country.');
+  const chosen=matches[0];
+  if(!chosen.timezone)throw Error('No time zone found for the birth city.');
+  const place={name:[chosen.name,chosen.admin1,chosen.country].filter(Boolean).join(', '),latitude:chosen.latitude,longitude:chosen.longitude,timezone:chosen.timezone,ambiguous:matches.length>1,otherMatches:matches.slice(1,4).map(x=>[x.name,x.admin1,x.country].filter(Boolean).join(', '))};
+  cache.set(key,place);
+  if(cache.size>100)cache.delete(cache.keys().next().value);
+  return place;
+}
 function parts(date,tz){const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date);return Object.fromEntries(p.map(x=>[x.type,Number(x.value)]));}
 function localToUtc(dob,time,tz){const [y,m,d]=dob.split('-').map(Number),[h,min]=time.split(':').map(Number);const wanted=Date.UTC(y,m-1,d,h,min);let utc=wanted;for(let i=0;i<5;i++){const p=parts(new Date(utc),tz);const local=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute);utc+=wanted-local;}const p=parts(new Date(utc),tz);if(Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute)!==wanted)throw Error('Birth time is ambiguous or nonexistent due to daylight-saving changes.');return new Date(utc);}
 function planetary(date){const out={};for(const [label,body] of [['Surya (Sun)','Sun'],['Budh (Mercury)','Mercury'],['Shukra (Venus)','Venus'],['Mangal (Mars)','Mars'],['Guru (Jupiter)','Jupiter'],['Shani (Saturn)','Saturn']]){try{const lon=norm(Astronomy.Ecliptic(Astronomy.GeoVector(body,date,true)).elon-ayanamsa(date));out[label]={rashi:SIGNS[Math.floor(lon/30)],siderealLongitudeDegrees:Number(lon.toFixed(3))};}catch{}}return out;}
